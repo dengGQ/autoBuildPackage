@@ -36,12 +36,9 @@ import javax.swing.*;
 import javax.swing.filechooser.FileSystemView;
 import java.io.File;
 import java.io.IOException;
+import java.util.Properties;
 
 public class BiuBiuBuildPackageAction extends AnAction {
-
-    public static final String JS_FILE_EXTENSION = "js";
-
-    public static final String XML_FILE_EXTENSION = "xml";
 
     public static final String JAVA_FILE_EXTENSION = "java";
 
@@ -49,59 +46,85 @@ public class BiuBiuBuildPackageAction extends AnAction {
     public static final String CLASSES = "classes";
     public static final String COM = "com";
     public static final String TARGET = "target";
+    public static final String RESOURCES = "resources";
 
     @Override
     public void actionPerformed(AnActionEvent e) {
+        try {
+            FileChooserDescriptor fileChooserDescriptor = new FileChooserDescriptor(false, true, false, false, false, false);
 
-        FileChooserDescriptor fileChooserDescriptor = new FileChooserDescriptor(false, true, false, false, false, false);
+            VirtualFile chooseFile = FileChooser.chooseFile(fileChooserDescriptor, e.getProject(), null);
 
-        VirtualFile chooseFile = FileChooser.chooseFile(fileChooserDescriptor, e.getProject(), null);
+            String rootPath = chooseFile.getPath();
 
-        String rootPath = chooseFile.getPath();
+            Object[] data = e.getData(PlatformDataKeys.SELECTED_ITEMS);
 
-        Object[] data = e.getData(PlatformDataKeys.SELECTED_ITEMS);
+            int i = 0;
+            for (Object o:data){
+                System.out.println(o);
+                if(o instanceof PsiJavaFile){
 
-        int i = 0;
-        for (Object o:data){
-            System.out.println(o);
-            if(o instanceof PsiJavaFile){
-
-                i++;
-                PsiJavaFile f = (PsiJavaFile)o;
-                buildPakcageForPsiClassFile(f, rootPath);
-            }else if(o instanceof PsiClass){
-
-                i++;
-                PsiClass javaFile = (PsiClass) o;
-
-                buildPackageForPsiJavaFile(javaFile, rootPath );
-            }else if(o instanceof XmlFile){
-                i++;
-                XmlFile file = (XmlFile)o;
-                VirtualFile virtualFile = file.getVirtualFile();
-                String parentFilePath = virtualFile.getParent().getPath();
-                buildPakcageForPsiFile(virtualFile.getPath(), FileUtil.join(rootPath, WEB_INF, CLASSES, parentFilePath.substring(parentFilePath.indexOf(COM))));
-            }else if(o instanceof PsiFile){
-                PsiFile file = (PsiFile) o;
-                String defaultExtension = file.getFileType().getDefaultExtension();
-                VirtualFile virtualFile = file.getVirtualFile();
-                String parentFilePath = virtualFile.getParent().getPath();
-                if (JS_FILE_EXTENSION.equals(defaultExtension)){
-
+                    PsiJavaFile f = (PsiJavaFile)o;
+                    buildPakcageForPsiClassFile(f, rootPath);
                     i++;
-                    buildPakcageForPsiFile(virtualFile.getPath(), FileUtil.join(rootPath, parentFilePath.substring(parentFilePath.indexOf(WEB_INF))));
-                }
-            }else if(o instanceof HtmlFileImpl){
+                }else if(o instanceof PsiClass){
 
+                    PsiClass javaFile = (PsiClass) o;
+
+                    buildPackageForPsiJavaFile(javaFile, rootPath );
+                    i++;
+                }else if(o instanceof HtmlFileImpl){
+                    HtmlFileImpl file = (HtmlFileImpl) o;
+
+                    VirtualFile virtualFile = file.getVirtualFile();
+                    String parentFilePath = virtualFile.getParent().getPath();
+                    buildPakcageForPsiFile(virtualFile.getPath(), FileUtil.join(rootPath, parentFilePath.substring(parentFilePath.indexOf(WEB_INF))));
+                    i++;
+                }else if(o instanceof XmlFile){
+                    XmlFile file = (XmlFile)o;
+                    VirtualFile virtualFile = file.getVirtualFile();
+                    String parentFilePath = virtualFile.getParent().getPath();
+                    if (parentFilePath.endsWith(RESOURCES)){
+
+                        buildPakcageForPsiFile(virtualFile.getPath(), FileUtil.join(rootPath, WEB_INF));
+                        i++;
+                    }else if (parentFilePath.startsWith(COM)){
+
+                        buildPakcageForPsiFile(virtualFile.getPath(), FileUtil.join(rootPath, WEB_INF, CLASSES, parentFilePath.substring(parentFilePath.indexOf(COM))));
+                        i++;
+                    }
+                }else{
+                    PsiFile file = (PsiFile) o;
+                    String defaultExtension = file.getFileType().getDefaultExtension();
+                    VirtualFile virtualFile = file.getVirtualFile();
+                    String parentFilePath = virtualFile.getParent().getPath();
+
+                    if (!parentFilePath.contains(WEB_INF)){
+
+                        buildPakcageForPsiFile(virtualFile.getPath(), FileUtil.join(rootPath, WEB_INF));
+                        i++;
+                    }else {
+                        buildPakcageForPsiFile(virtualFile.getPath(), FileUtil.join(rootPath, parentFilePath.substring(parentFilePath.indexOf(WEB_INF))));
+                        i++;
+                    }
+                }
             }
-        }
-        if (i > 0){
-            Messages.showMessageDialog("打包成功，快去桌面看看有没有！", "Information", Messages.getInformationIcon());
-        }else {
-            Messages.showMessageDialog("请选择有效的class文件！", "Information", Messages.getInformationIcon());
+            if (i > 0){
+                Messages.showMessageDialog("打包成功，快去桌面看看有没有！", "Information", Messages.getInformationIcon());
+            }else {
+                Messages.showMessageDialog("请选择有效的class文件！", "Information", Messages.getInformationIcon());
+            }
+        }catch (Exception ep){
+            ep.printStackTrace();
+            Messages.showMessageDialog("打包失败："+ep.getMessage(), "Tip", Messages.getInformationIcon());
         }
     }
 
+    /**
+     * class文件
+     * @param javaFile
+     * @param rootPath
+     */
     private void buildPackageForPsiJavaFile(PsiClass javaFile, String rootPath){
         Project project = javaFile.getProject();
 
@@ -132,6 +155,11 @@ public class BiuBiuBuildPackageAction extends AnAction {
         }
     }
 
+    /**
+     * java文件
+     * @param f
+     * @param rootPath
+     */
     private void buildPakcageForPsiClassFile(PsiJavaFile f, String rootPath){
         String packageName = f.getPackageName();
         VirtualFile virtualFile = f.getVirtualFile();
@@ -150,7 +178,7 @@ public class BiuBiuBuildPackageAction extends AnAction {
     }
 
     /**
-     *
+     * 其他文件文件
      * @param filePath
      * @param fileDir
      */
